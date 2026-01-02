@@ -1,0 +1,48 @@
+Metadata-Version: 2.4
+Name: todo-evolution-platform
+Version: 0.1.0
+Summary: Multi-Phase Todo Application - Console to Cloud
+Author: Todo Evolution Team
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: rich>=13.7.1
+Requires-Dist: pydantic>=2.6.4
+Requires-Dist: pytest>=8.1.1
+Requires-Dist: pytest-cov>=5.0.0
+Requires-Dist: mypy>=1.9.0
+Requires-Dist: black>=24.4.2
+Requires-Dist: flake8>=7.0.0
+Requires-Dist: fastapi>=0.110.2
+Requires-Dist: uvicorn[standard]>=0.29.0
+Requires-Dist: sqlmodel>=0.0.16
+Requires-Dist: openai>=1.16.2
+Requires-Dist: langchain>=0.1.17
+Requires-Dist: langchain-openai>=0.1.4
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Dynamic: requires-python
+
+# Multi-Phase Todo Application - Console to Cloud
+
+This project demonstrates the evolution of a simple todo application from a console application to a cloud-native distributed system. The implementation follows a phased approach with progressive complexity.
+
+## Phases
+
+1. **Phase I**: Console Application - Python CLI with Rich interface
+2. **Phase II**: Web Application - Next.js frontend with FastAPI backend
+3. **Phase III**: AI Chatbot - Natural language todo creation
+4. **Phase IV**: Kubernetes Deployment - Containerized orchestration
+5. **Phase V**: Cloud Production - Production-scale distributed system
+
+## Quick Start
+
+See [quickstart.md](specs/001-todo-app-arch-evolution/quickstart.md) for detailed setup instructions for each phase.
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture details.

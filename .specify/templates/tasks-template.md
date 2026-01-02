@@ -12,6 +12,13 @@ description: "Task list template for feature implementation"
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Constitution Compliance**: All tasks must adhere to the project constitution requirements including:
+- Code Quality standards (type hints, docstrings, 90%+ test coverage)
+- Technology stack compliance (Python 3.11+, TypeScript, Next.js 14+, etc.)
+- Security standards (secrets management, input validation)
+- Documentation requirements (per-phase documentation)
+- Performance benchmarks (specific to each phase)
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)

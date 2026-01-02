@@ -31,7 +31,45 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Phase I: In-Memory Python Console App
+- Verify Python 3.11+ compatibility
+- Confirm Rich library for CLI interface
+- Ensure pytest unit tests with 90%+ coverage
+- Validate type hints and docstrings implementation
+
+### Phase II: Full-Stack Web Application
+- Confirm Next.js 14+ with App Router
+- Verify TypeScript usage throughout
+- Validate Tailwind CSS integration
+- Check FastAPI backend with async/await patterns
+- Ensure SQLModel with Neon DB (PostgreSQL)
+- Verify JWT-based authentication
+
+### Phase III: AI-Powered Todo Chatbot
+- Confirm OpenAI ChatKit integration
+- Validate Agents SDK for task orchestration
+- Check MCP SDK integration
+- Verify NLU capabilities (intent recognition, entity extraction)
+
+### Phase IV: Local Kubernetes Deployment
+- Verify Docker multi-stage builds
+- Confirm Minikube for local K8s cluster
+- Validate Helm charts for all services
+- Check kubectl-ai integration
+- Ensure Prometheus + Grafana observability stack
+
+### Phase V: Advanced Cloud Deployment
+- Confirm Apache Kafka for event streaming
+- Validate Dapr for microservices patterns
+- Check DigitalOcean DOKS deployment
+- Verify GitHub Actions CI/CD pipeline
+- Ensure Zipkin for distributed tracing
+
+### Cross-Phase Requirements
+- Confirm Git with conventional commits
+- Verify code review process
+- Check security standards (secrets management, input validation)
+- Validate documentation requirements per phase
 
 ## Project Structure
 

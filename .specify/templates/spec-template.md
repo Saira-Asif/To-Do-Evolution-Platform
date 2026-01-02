@@ -105,6 +105,13 @@
 <!--
   ACTION REQUIRED: Define measurable success criteria.
   These must be technology-agnostic and measurable.
+
+  Ensure alignment with constitution success criteria:
+  - Phase I: Sub-second response times, 90%+ test coverage, zero crashes
+  - Phase II: API response < 200ms (p95), page load < 2s, proper HTTP status codes
+  - Phase III: AI response < 3s for simple queries, context maintenance
+  - Phase IV: Service startup < 30s, pod recovery < 60s
+  - Phase V: Handle 1000+ concurrent users, 99.9% uptime
 -->
 
 ### Measurable Outcomes

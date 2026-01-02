@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+src/todo_evolution_platform.egg-info/PKG-INFO
+src/todo_evolution_platform.egg-info/SOURCES.txt
+src/todo_evolution_platform.egg-info/dependency_links.txt
+src/todo_evolution_platform.egg-info/entry_points.txt
+src/todo_evolution_platform.egg-info/requires.txt
+src/todo_evolution_platform.egg-info/top_level.txt

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install rich pydantic pytest pytest-cov mypy black flake8)"
+    ]
+  }
+}
