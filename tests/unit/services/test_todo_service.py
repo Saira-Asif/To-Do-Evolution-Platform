@@ -1,138 +1,155 @@
+from uuid import UUID
+
 import pytest
-from datetime import datetime, timedelta
+
+from src.models.storage import InMemoryTodoStorage
+from src.models.todo import Todo
 from src.services.todo_service import TodoService
-from src.models.todo import Todo, TodoStatus
 
 
 class TestTodoService:
-    """Test cases for TodoService"""
-
     def setup_method(self):
-        """Set up test fixtures before each test method."""
-        self.todo_service = TodoService()
+        """Set up a fresh service instance for each test."""
+        self.storage = InMemoryTodoStorage()
+        self.service = TodoService(self.storage)
 
-    def test_create_todo(self):
-        """Test creating a new todo."""
-        title = "Test Todo"
-        description = "Test Description"
-        due_date = datetime.now() + timedelta(days=1)
+    def test_add_task(self):
+        """Test adding a task."""
+        title = "Test task"
+        description = "Test description"
 
-        todo = self.todo_service.create_todo(title, description, due_date)
+        todo = self.service.add_task(title, description)
 
         assert todo.title == title
         assert todo.description == description
-        assert todo.due_date == due_date
-        assert todo.status == TodoStatus.PENDING
-        assert todo.id == 1  # First todo should have ID 1
+        assert not todo.completed
+        assert isinstance(todo.id, UUID)
 
-    def test_get_todo(self):
-        """Test getting a todo by ID."""
-        # Create a todo first
-        created_todo = self.todo_service.create_todo("Test Todo")
+    def test_add_task_without_description(self):
+        """Test adding a task without description."""
+        title = "Test task"
 
-        # Retrieve the todo
-        retrieved_todo = self.todo_service.get_todo(created_todo.id)
+        todo = self.service.add_task(title)
 
-        assert retrieved_todo is not None
-        assert retrieved_todo.id == created_todo.id
-        assert retrieved_todo.title == created_todo.title
+        assert todo.title == title
+        assert todo.description == ""
+        assert not todo.completed
 
-    def test_get_todo_not_found(self):
-        """Test getting a non-existent todo."""
-        todo = self.todo_service.get_todo(999)
+    def test_add_task_validation_error(self):
+        """Test that validation errors are propagated."""
+        long_title = "a" * 201
 
-        assert todo is None
+        with pytest.raises(ValueError):
+            self.service.add_task(long_title)
 
-    def test_get_all_todos(self):
-        """Test getting all todos."""
-        # Create multiple todos
-        todo1 = self.todo_service.create_todo("Todo 1")
-        todo2 = self.todo_service.create_todo("Todo 2")
+    def test_get_all_tasks_empty(self):
+        """Test getting all tasks when none exist."""
+        todos = self.service.get_all_tasks()
 
-        all_todos = self.todo_service.get_all_todos()
+        assert len(todos) == 0
 
-        assert len(all_todos) == 2
-        assert todo1 in all_todos
-        assert todo2 in all_todos
+    def test_get_all_tasks(self):
+        """Test getting all tasks."""
+        todo1 = self.service.add_task("Task 1", "Description 1")
+        todo2 = self.service.add_task("Task 2", "Description 2")
 
-    def test_get_todos_by_status(self):
-        """Test getting todos by status."""
-        # Create todos with different statuses
-        todo1 = self.todo_service.create_todo("Todo 1")
-        todo2 = self.todo_service.create_todo("Todo 2")
+        todos = self.service.get_all_tasks()
 
-        # Mark one as completed
-        self.todo_service.mark_todo_completed(todo2.id)
+        assert len(todos) == 2
+        assert todo1 in todos
+        assert todo2 in todos
 
-        pending_todos = self.todo_service.get_todos_by_status(TodoStatus.PENDING)
-        completed_todos = self.todo_service.get_todos_by_status(TodoStatus.COMPLETED)
+    def test_update_task(self):
+        """Test updating a task."""
+        original_todo = self.service.add_task("Original task", "Original description")
+        new_title = "Updated task"
+        new_description = "Updated description"
 
-        assert len(pending_todos) == 1
-        assert len(completed_todos) == 1
-        assert pending_todos[0].id == todo1.id
-        assert completed_todos[0].id == todo2.id
-
-    def test_update_todo(self):
-        """Test updating a todo."""
-        # Create a todo
-        original_todo = self.todo_service.create_todo("Original Title", "Original Description")
-
-        # Update the todo
-        updated_title = "Updated Title"
-        updated_description = "Updated Description"
-        updated_todo = self.todo_service.update_todo(
-            original_todo.id,
-            title=updated_title,
-            description=updated_description
-        )
+        updated_todo = self.service.update_task(original_todo.id, new_title, new_description)
 
         assert updated_todo is not None
-        assert updated_todo.title == updated_title
-        assert updated_todo.description == updated_description
+        assert updated_todo.title == new_title
+        assert updated_todo.description == new_description
 
-    def test_delete_todo(self):
-        """Test deleting a todo."""
-        # Create a todo
-        todo = self.todo_service.create_todo("Test Todo")
+    def test_update_task_partial(self):
+        """Test updating only title or description."""
+        original_todo = self.service.add_task("Original task", "Original description")
 
-        # Delete the todo
-        success = self.todo_service.delete_todo(todo.id)
+        # Update only title
+        updated_todo = self.service.update_task(original_todo.id, title="Updated title")
+        assert updated_todo.title == "Updated title"
+        assert updated_todo.description == "Original description"
 
-        assert success is True
-        assert self.todo_service.get_todo(todo.id) is None
+        # Update only description
+        updated_todo = self.service.update_task(original_todo.id, description="Updated description")
+        assert updated_todo.title == "Updated title"
+        assert updated_todo.description == "Updated description"
 
-    def test_delete_todo_not_found(self):
-        """Test deleting a non-existent todo."""
-        success = self.todo_service.delete_todo(999)
+    def test_update_task_not_found(self):
+        """Test updating a non-existent task."""
+        fake_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        assert success is False
+        result = self.service.update_task(fake_id, "New title")
 
-    def test_mark_todo_completed(self):
-        """Test marking a todo as completed."""
-        todo = self.todo_service.create_todo("Test Todo")
+        assert result is None
 
-        completed_todo = self.todo_service.mark_todo_completed(todo.id)
+    def test_update_task_validation_error(self):
+        """Test that validation errors are propagated during update."""
+        original_todo = self.service.add_task("Original task")
+
+        with pytest.raises(ValueError):
+            self.service.update_task(original_todo.id, "a" * 201)  # Too long title
+
+    def test_delete_task(self):
+        """Test deleting a task."""
+        todo = self.service.add_task("Test task")
+
+        result = self.service.delete_task(todo.id)
+
+        assert result is True
+        assert len(self.service.get_all_tasks()) == 0
+
+    def test_delete_task_not_found(self):
+        """Test deleting a non-existent task."""
+        fake_id = UUID("12345678-1234-5678-1234-567812345678")
+
+        result = self.service.delete_task(fake_id)
+
+        assert result is False
+
+    def test_complete_task(self):
+        """Test marking a task as complete."""
+        todo = self.service.add_task("Test task")
+        assert not todo.completed
+
+        completed_todo = self.service.complete_task(todo.id)
 
         assert completed_todo is not None
-        assert completed_todo.status == TodoStatus.COMPLETED
+        assert completed_todo.completed
 
-    def test_mark_todo_in_progress(self):
-        """Test marking a todo as in progress."""
-        todo = self.todo_service.create_todo("Test Todo")
+    def test_complete_task_not_found(self):
+        """Test completing a non-existent task."""
+        fake_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        in_progress_todo = self.todo_service.mark_todo_in_progress(todo.id)
+        result = self.service.complete_task(fake_id)
 
-        assert in_progress_todo is not None
-        assert in_progress_todo.status == TodoStatus.IN_PROGRESS
+        assert result is None
 
-    def test_mark_todo_pending(self):
-        """Test marking a todo as pending."""
-        todo = self.todo_service.create_todo("Test Todo")
-        # First mark as completed
-        self.todo_service.mark_todo_completed(todo.id)
+    def test_uncomplete_task(self):
+        """Test marking a task as incomplete."""
+        todo = self.service.add_task("Test task")
+        completed_todo = self.service.complete_task(todo.id)
+        assert completed_todo.completed
 
-        # Then mark as pending
-        pending_todo = self.todo_service.mark_todo_pending(todo.id)
+        uncompleted_todo = self.service.uncomplete_task(todo.id)
 
-        assert pending_todo is not None
-        assert pending_todo.status == TodoStatus.PENDING
+        assert uncompleted_todo is not None
+        assert not uncompleted_todo.completed
+
+    def test_uncomplete_task_not_found(self):
+        """Test uncompleting a non-existent task."""
+        fake_id = UUID("12345678-1234-5678-1234-567812345678")
+
+        result = self.service.uncomplete_task(fake_id)
+
+        assert result is None

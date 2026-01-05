@@ -1,207 +1,160 @@
+import sys
+from typing import Optional
+from uuid import UUID
+
+import click
 from rich.console import Console
 from rich.table import Table
-from rich.prompt import Prompt, Confirm
-from rich import print
-import argparse
-from datetime import datetime
-from typing import Optional
+
+from src.models.storage import InMemoryTodoStorage
+from src.models.todo import Todo
 from src.services.todo_service import TodoService
-from src.models.todo import TodoStatus
+
+# Create a global storage instance
+storage = InMemoryTodoStorage()
+service = TodoService(storage)
+console = Console()
 
 
-def safe_int_input(console: Console, prompt: str, error_msg: str = "Invalid input. Please enter a valid number.") -> Optional[int]:
-    """Safely get integer input from user."""
+@click.group()
+def cli():
+    """A CLI tool for managing todos."""
+    pass
+
+
+@cli.command()
+@click.argument('title', type=str)
+@click.option('--desc', default='', help='Description for the task')
+def add(title: str, desc: str):
+    """Add a new task."""
     try:
-        return int(Prompt.ask(prompt))
-    except ValueError:
-        console.print(f"[red]{error_msg}[/red]")
-        return None
+        todo = service.add_task(title, desc)
+        console.print(f"[green]Added task:[/green] {todo.title} (ID: {todo.id})")
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
 
 
-def display_todos(console: Console, todo_service: TodoService, status: Optional[TodoStatus] = None):
-    """Display todos in a rich table format."""
-    todos = todo_service.get_all_todos(status)
+@cli.command()
+def list():
+    """List all tasks."""
+    todos = service.get_all_tasks()
 
     if not todos:
-        console.print("[yellow]No todos found.[/yellow]")
+        console.print("[yellow]No tasks found.[/yellow]")
         return
 
-    table = Table(title="Your Todos")
-    table.add_column("ID", style="cyan", no_wrap=True)
-    table.add_column("Title", style="magenta")
-    table.add_column("Description", style="green")
+    table = Table(title="Todo List")
+    table.add_column("ID", style="dim")
     table.add_column("Status", style="bold")
-    table.add_column("Due Date", style="yellow")
-    table.add_column("Created", style="dim")
+    table.add_column("Title", style="bold")
+    table.add_column("Description")
+    table.add_column("Created At")
 
     for todo in todos:
-        status_style = {
-            TodoStatus.PENDING: "red",
-            TodoStatus.IN_PROGRESS: "yellow",
-            TodoStatus.COMPLETED: "green"
-        }[todo.status]
-
+        status = "X" if todo.completed else "O"
+        status_style = "green" if todo.completed else "red"
         table.add_row(
-            str(todo.id) if todo.id else "N/A",
+            str(todo.id),
+            f"[{status_style}]{status}[/{status_style}]",
             todo.title,
             todo.description or "",
-            f"[{status_style}]{todo.status.value}[/]",
-            todo.due_date.strftime("%Y-%m-%d %H:%M") if todo.due_date else "No due date",
             todo.created_at.strftime("%Y-%m-%d %H:%M")
         )
 
     console.print(table)
 
 
-def add_todo(console: Console, todo_service: TodoService):
-    """Add a new todo."""
-    title = Prompt.ask("Enter todo title")
-    description = Prompt.ask("Enter description (optional)", default="")
-    description = description if description.strip() else None
+@cli.command()
+@click.argument('id', type=str)
+@click.option('--title', help='New title for the task')
+@click.option('--desc', help='New description for the task')
+def update(id: str, title: Optional[str], desc: Optional[str]):
+    """Update a task."""
+    try:
+        todo_id = UUID(id)
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid ID format: {id}")
+        sys.exit(1)
 
-    due_date_str = Prompt.ask("Enter due date (YYYY-MM-DD HH:MM, optional)", default="")
-    due_date = None
-    if due_date_str.strip():
-        try:
-            due_date = datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
-        except ValueError:
-            console.print("[red]Invalid date format. Using no due date.[/red]")
+    # Check if at least one update field is provided
+    if title is None and desc is None:
+        console.print("[red]Error:[/red] Please provide at least one field to update (--title or --desc)")
+        sys.exit(1)
 
     try:
-        todo = todo_service.create_todo(title, description, due_date)
-        console.print(f"[green]Successfully created todo with ID: {todo.id}[/green]")
-    except ValueError as e:
-        console.print(f"[red]Error creating todo: {e}[/red]")
-
-
-def update_todo(console: Console, todo_service: TodoService):
-    """Update an existing todo."""
-    todo_id = safe_int_input(console, "Enter todo ID to update")
-    if todo_id is None:
-        return
-
-    todo = todo_service.get_todo(todo_id)
-    if not todo:
-        console.print(f"[red]Todo with ID {todo_id} not found.[/red]")
-        return
-
-    title = Prompt.ask(f"Enter new title (current: {todo.title})", default=todo.title)
-    description = Prompt.ask(f"Enter new description (current: {todo.description or 'None'})",
-                            default=todo.description or "")
-    description = description if description != "None" else None
-
-    try:
-        updated_todo = todo_service.update_todo(todo_id, title=title, description=description)
+        updated_todo = service.update_task(todo_id, title, desc)
         if updated_todo:
-            console.print(f"[green]Successfully updated todo with ID: {updated_todo.id}[/green]")
+            console.print(f"[green]Updated task:[/green] {updated_todo.title} (ID: {updated_todo.id})")
         else:
-            console.print(f"[red]Failed to update todo with ID: {todo_id}[/red]")
+            console.print(f"[red]Error:[/red] Task with ID {id} not found")
+            sys.exit(1)
     except ValueError as e:
-        console.print(f"[red]Error updating todo: {e}[/red]")
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
 
 
-def delete_todo(console: Console, todo_service: TodoService):
-    """Delete a todo."""
-    todo_id = safe_int_input(console, "Enter todo ID to delete")
-    if todo_id is None:
+@cli.command()
+@click.argument('id', type=str)
+def delete(id: str):
+    """Delete a task."""
+    try:
+        todo_id = UUID(id)
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid ID format: {id}")
+        sys.exit(1)
+
+    # Confirm deletion
+    confirm = click.confirm(f"Are you sure you want to delete task {id}?")
+    if not confirm:
+        console.print("[yellow]Deletion cancelled.[/yellow]")
         return
 
-    success = todo_service.delete_todo(todo_id)
-    if success:
-        console.print(f"[green]Successfully deleted todo with ID: {todo_id}[/green]")
+    if service.delete_task(todo_id):
+        console.print(f"[green]Deleted task:[/green] {id}")
     else:
-        console.print(f"[red]Todo with ID {todo_id} not found.[/red]")
+        console.print(f"[red]Error:[/red] Task with ID {id} not found")
+        sys.exit(1)
 
 
-def mark_todo_status(console: Console, todo_service: TodoService):
-    """Mark a todo with a new status."""
-    todo_id = safe_int_input(console, "Enter todo ID")
-    if todo_id is None:
-        return
+@cli.command()
+@click.argument('id', type=str)
+def complete(id: str):
+    """Mark a task as complete."""
+    try:
+        todo_id = UUID(id)
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid ID format: {id}")
+        sys.exit(1)
 
-    todo = todo_service.get_todo(todo_id)
-    if not todo:
-        console.print(f"[red]Todo with ID {todo_id} not found.[/red]")
-        return
-
-    console.print("Select new status:")
-    console.print("1. Pending")
-    console.print("2. In Progress")
-    console.print("3. Completed")
-
-    choice = Prompt.ask("Enter choice (1-3)", choices=["1", "2", "3"])
-
-    if choice == "1":
-        updated = todo_service.mark_todo_pending(todo_id)
-    elif choice == "2":
-        updated = todo_service.mark_todo_in_progress(todo_id)
-    else:  # choice == "3"
-        updated = todo_service.mark_todo_completed(todo_id)
-
-    if updated:
-        console.print(f"[green]Successfully updated todo status to: {updated.status.value}[/green]")
+    todo = service.complete_task(todo_id)
+    if todo:
+        console.print(f"[green]Marked task as complete:[/green] {todo.title}")
     else:
-        console.print(f"[red]Failed to update todo status for ID: {todo_id}[/red]")
+        console.print(f"[red]Error:[/red] Task with ID {id} not found")
+        sys.exit(1)
 
 
-def show_menu(console: Console, todo_service: TodoService):
-    """Show the main menu and handle user input."""
-    while True:
-        console.print("\n[bright_blue]Todo CLI Application[/bright_blue]")
-        console.print("1. List all todos")
-        console.print("2. Add new todo")
-        console.print("3. Update todo")
-        console.print("4. Delete todo")
-        console.print("5. Mark todo status")
-        console.print("6. List pending todos")
-        console.print("7. List completed todos")
-        console.print("8. Exit")
+@cli.command()
+@click.argument('id', type=str)
+def uncomplete(id: str):
+    """Mark a task as incomplete."""
+    try:
+        todo_id = UUID(id)
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid ID format: {id}")
+        sys.exit(1)
 
-        try:
-            choice = Prompt.ask("\nEnter your choice (1-8)", choices=["1", "2", "3", "4", "5", "6", "7", "8"])
-
-            if choice == "1":
-                display_todos(console, todo_service)
-            elif choice == "2":
-                add_todo(console, todo_service)
-            elif choice == "3":
-                update_todo(console, todo_service)
-            elif choice == "4":
-                delete_todo(console, todo_service)
-            elif choice == "5":
-                mark_todo_status(console, todo_service)
-            elif choice == "6":
-                display_todos(console, todo_service, TodoStatus.PENDING)
-            elif choice == "7":
-                display_todos(console, todo_service, TodoStatus.COMPLETED)
-            elif choice == "8":
-                console.print("[green]Goodbye![/green]")
-                break
-        except KeyboardInterrupt:
-            console.print("\n[red]Operation cancelled by user.[/red]")
-            break
-        except Exception as e:
-            console.print(f"[red]An unexpected error occurred: {e}[/red]")
-
-
-def create_cli_app():
-    """
-    Create the main CLI application for the todo app.
-    """
-    console = Console()
-    todo_service = TodoService()
-
-    def run_app():
-        """Run the CLI application."""
-        show_menu(console, todo_service)
-
-    return run_app
+    todo = service.uncomplete_task(todo_id)
+    if todo:
+        console.print(f"[green]Marked task as incomplete:[/green] {todo.title}")
+    else:
+        console.print(f"[red]Error:[/red] Task with ID {id} not found")
+        sys.exit(1)
 
 
 def main():
-    """Main entry point for the CLI application."""
-    app = create_cli_app()
-    app()
+    cli()
 
 
 if __name__ == "__main__":

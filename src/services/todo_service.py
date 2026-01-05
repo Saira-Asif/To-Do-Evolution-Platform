@@ -1,139 +1,120 @@
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-from src.models.todo import Todo, TodoStatus
-from src.services.validation_service import ValidationService
+from typing import List, Optional
+from uuid import UUID
+
+from src.models.storage import InMemoryTodoStorage
+from src.models.todo import Todo
 
 
 class TodoService:
     """
-    Service for managing todo operations with in-memory storage.
+    Service layer for todo operations.
     """
+    def __init__(self, storage: InMemoryTodoStorage) -> None:
+        self.storage = storage
 
-    def __init__(self):
-        self.todos: List[Todo] = []
-        self.next_id = 1
-        self.validation_service = ValidationService()
-
-    def create_todo(self, title: str, description: Optional[str] = None,
-                   due_date: Optional[datetime] = None) -> Todo:
+    def add_task(self, title: str, description: Optional[str] = None) -> Todo:
         """
-        Create a new todo item.
-        """
-        # Validate the input data
-        validation_errors = self.validation_service.validate_todo_title(title)
-        if description:
-            validation_errors.extend(self.validation_service.validate_todo_description(description))
+        Add a new task.
 
-        if validation_errors:
-            raise ValueError(f"Validation failed: {'; '.join(validation_errors)}")
+        Args:
+            title: The task title (1-200 characters)
+            description: Optional task description (max 1000 characters)
 
-        # Create the new todo
-        todo = Todo(
-            id=self.next_id,
-            title=title,
-            description=description,
-            due_date=due_date
-        )
+        Returns:
+            The created Todo object
 
-        self.todos.append(todo)
-        self.next_id += 1
+        Raises:
+            ValueError: If title or description validation fails
+        """
+        # Create a new Todo instance
+        todo = Todo(title=title, description=description or "")
+        # Add to storage and return
+        return self.storage.add_todo(todo)
 
-        return todo
+    def get_all_tasks(self) -> List[Todo]:
+        """
+        Get all tasks.
 
-    def get_todo(self, todo_id: int) -> Optional[Todo]:
+        Returns:
+            List of all Todo objects
         """
-        Get a todo by its ID.
-        """
-        for todo in self.todos:
-            if todo.id == todo_id:
-                return todo
-        return None
+        return self.storage.get_all_todos()
 
-    def get_all_todos(self, status: Optional[TodoStatus] = None) -> List[Todo]:
+    def update_task(self, todo_id: UUID, title: Optional[str] = None, description: Optional[str] = None) -> Optional[Todo]:
         """
-        Get all todos, optionally filtered by status.
-        """
-        if status:
-            return [todo for todo in self.todos if todo.status == status]
-        return self.todos.copy()
+        Update an existing task.
 
-    def update_todo(self, todo_id: int, **kwargs) -> Optional[Todo]:
+        Args:
+            todo_id: The ID of the task to update
+            title: New title (optional)
+            description: New description (optional)
+
+        Returns:
+            The updated Todo object, or None if not found
+
+        Raises:
+            ValueError: If title or description validation fails
         """
-        Update a todo with the provided fields.
-        """
-        todo = self.get_todo(todo_id)
-        if not todo:
+        existing_todo = self.storage.get_todo(todo_id)
+        if existing_todo is None:
             return None
 
-        # Validate title if provided
-        if 'title' in kwargs:
-            validation_errors = self.validation_service.validate_todo_title(kwargs['title'])
-            if validation_errors:
-                raise ValueError(f"Validation failed: {'; '.join(validation_errors)}")
+        # Update the todo with provided values
+        if title is not None:
+            # Create a temporary Todo to validate the new title
+            Todo(title=title, description=existing_todo.description)
+            existing_todo.title = title
+        if description is not None:
+            # Create a temporary Todo to validate the new description
+            Todo(title=existing_todo.title, description=description)
+            existing_todo.description = description
+        existing_todo.updated_at = existing_todo.updated_at  # This will update the timestamp
 
-        # Validate description if provided
-        if 'description' in kwargs:
-            validation_errors = self.validation_service.validate_todo_description(kwargs['description'])
-            if validation_errors:
-                raise ValueError(f"Validation failed: {'; '.join(validation_errors)}")
+        # Save the updated todo
+        return self.storage.update_todo(todo_id, existing_todo)
 
-        # Update the todo fields
-        for key, value in kwargs.items():
-            if hasattr(todo, key):
-                setattr(todo, key, value)
+    def delete_task(self, todo_id: UUID) -> bool:
+        """
+        Delete a task by ID.
 
-        todo.updated_at = datetime.now()
+        Args:
+            todo_id: The ID of the task to delete
 
-        return todo
+        Returns:
+            True if the task was deleted, False if not found
+        """
+        return self.storage.delete_todo(todo_id)
 
-    def delete_todo(self, todo_id: int) -> bool:
+    def complete_task(self, todo_id: UUID) -> Optional[Todo]:
         """
-        Delete a todo by its ID.
-        """
-        original_length = len(self.todos)
-        self.todos = [todo for todo in self.todos if todo.id != todo_id]
-        return len(self.todos) < original_length
+        Mark a task as complete.
 
-    def mark_todo_completed(self, todo_id: int) -> Optional[Todo]:
-        """
-        Mark a todo as completed.
-        """
-        todo = self.get_todo(todo_id)
-        if todo:
-            todo.mark_completed()
-            return todo
-        return None
+        Args:
+            todo_id: The ID of the task to mark as complete
 
-    def mark_todo_in_progress(self, todo_id: int) -> Optional[Todo]:
+        Returns:
+            The updated Todo object, or None if not found
         """
-        Mark a todo as in progress.
-        """
-        todo = self.get_todo(todo_id)
-        if todo:
-            todo.mark_in_progress()
-            return todo
-        return None
+        existing_todo = self.storage.get_todo(todo_id)
+        if existing_todo is None:
+            return None
 
-    def mark_todo_pending(self, todo_id: int) -> Optional[Todo]:
-        """
-        Mark a todo as pending.
-        """
-        todo = self.get_todo(todo_id)
-        if todo:
-            todo.mark_pending()
-            return todo
-        return None
+        existing_todo.mark_complete()
+        return self.storage.update_todo(todo_id, existing_todo)
 
-    def get_todos_by_status(self, status: TodoStatus) -> List[Todo]:
+    def uncomplete_task(self, todo_id: UUID) -> Optional[Todo]:
         """
-        Get all todos with a specific status.
-        """
-        return [todo for todo in self.todos if todo.status == status]
+        Mark a task as incomplete.
 
-    def get_overdue_todos(self) -> List[Todo]:
+        Args:
+            todo_id: The ID of the task to mark as incomplete
+
+        Returns:
+            The updated Todo object, or None if not found
         """
-        Get all overdue todos.
-        """
-        now = datetime.now()
-        return [todo for todo in self.todos
-                if todo.due_date and todo.due_date < now and todo.status != TodoStatus.COMPLETED]
+        existing_todo = self.storage.get_todo(todo_id)
+        if existing_todo is None:
+            return None
+
+        existing_todo.mark_incomplete()
+        return self.storage.update_todo(todo_id, existing_todo)

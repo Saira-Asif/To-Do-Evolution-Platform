@@ -1,63 +1,116 @@
 import pytest
 from datetime import datetime
-from src.models.todo import Todo, TodoStatus
+from uuid import UUID
+
+from src.models.todo import Todo
 
 
-class TestTodo:
-    """Test cases for Todo model"""
+def test_todo_creation():
+    """Test creating a valid Todo."""
+    todo = Todo(title="Test task", description="Test description")
 
-    def test_todo_creation(self):
-        """Test creating a todo with all fields."""
-        todo = Todo(
-            title="Test Todo",
-            description="Test Description",
-            status=TodoStatus.PENDING,
-            due_date=datetime.now()
-        )
+    assert todo.title == "Test task"
+    assert todo.description == "Test description"
+    assert not todo.completed
+    assert isinstance(todo.id, UUID)
+    assert isinstance(todo.created_at, datetime)
+    assert isinstance(todo.updated_at, datetime)
 
-        assert todo.title == "Test Todo"
-        assert todo.description == "Test Description"
-        assert todo.status == TodoStatus.PENDING
 
-    def test_todo_creation_optional_fields(self):
-        """Test creating a todo with minimal fields."""
-        todo = Todo(title="Test Todo")
+def test_todo_creation_defaults():
+    """Test Todo creation with default values."""
+    todo = Todo(title="Test task")
 
-        assert todo.title == "Test Todo"
-        assert todo.description is None
-        assert todo.status == TodoStatus.PENDING
-        assert todo.due_date is None
+    assert todo.title == "Test task"
+    assert todo.description == ""
+    assert not todo.completed
 
-    def test_mark_completed(self):
-        """Test marking a todo as completed."""
-        todo = Todo(title="Test Todo")
 
-        todo.mark_completed()
+def test_todo_mark_complete():
+    """Test marking a todo as complete."""
+    todo = Todo(title="Test task")
 
-        assert todo.status == TodoStatus.COMPLETED
+    assert not todo.completed
+    todo.mark_complete()
+    assert todo.completed
+    assert isinstance(todo.updated_at, datetime)
 
-    def test_mark_in_progress(self):
-        """Test marking a todo as in progress."""
-        todo = Todo(title="Test Todo")
 
-        todo.mark_in_progress()
+def test_todo_mark_incomplete():
+    """Test marking a todo as incomplete."""
+    todo = Todo(title="Test task")
+    todo.mark_complete()
 
-        assert todo.status == TodoStatus.IN_PROGRESS
+    assert todo.completed
+    todo.mark_incomplete()
+    assert not todo.completed
+    assert isinstance(todo.updated_at, datetime)
 
-    def test_mark_pending(self):
-        """Test marking a todo as pending."""
-        todo = Todo(title="Test Todo", status=TodoStatus.COMPLETED)
 
-        todo.mark_pending()
+def test_todo_update():
+    """Test updating a todo."""
+    todo = Todo(title="Test task", description="Original description")
+    original_updated_at = todo.updated_at
 
-        assert todo.status == TodoStatus.PENDING
+    todo.update(title="Updated task", description="Updated description")
 
-    def test_todo_validation_title_too_long(self):
-        """Test validation for title that's too long."""
-        with pytest.raises(ValueError):
-            Todo(title="A" * 201)  # More than 200 characters
+    assert todo.title == "Updated task"
+    assert todo.description == "Updated description"
+    assert todo.updated_at > original_updated_at
 
-    def test_todo_validation_description_too_long(self):
-        """Test validation for description that's too long."""
-        with pytest.raises(ValueError):
-            Todo(title="Test", description="A" * 1001)  # More than 1000 characters
+
+def test_todo_update_partial():
+    """Test updating only title or description."""
+    todo = Todo(title="Test task", description="Test description")
+
+    # Update only title
+    original_desc = todo.description
+    todo.update(title="Updated task")
+    assert todo.title == "Updated task"
+    assert todo.description == original_desc
+
+    # Update only description
+    original_title = todo.title
+    original_updated_at = todo.updated_at
+    todo.update(description="New description")
+    assert todo.title == original_title
+    assert todo.description == "New description"
+    assert todo.updated_at > original_updated_at
+
+
+def test_title_validation_min_length():
+    """Test title validation for minimum length."""
+    with pytest.raises(ValueError, match="Title cannot be empty or whitespace only"):
+        Todo(title="")
+
+
+def test_title_validation_whitespace_only():
+    """Test title validation for whitespace-only titles."""
+    with pytest.raises(ValueError, match="Title cannot be empty or whitespace only"):
+        Todo(title="   ")
+
+
+def test_title_validation_max_length():
+    """Test title validation for maximum length."""
+    long_title = "a" * 201
+    with pytest.raises(ValueError, match="Title must be 200 characters or less"):
+        Todo(title=long_title)
+
+
+def test_description_validation_max_length():
+    """Test description validation for maximum length."""
+    long_description = "a" * 1001
+    with pytest.raises(ValueError, match="Description must be 1000 characters or less"):
+        Todo(title="Test", description=long_description)
+
+
+def test_title_stripping():
+    """Test that title gets stripped of leading/trailing whitespace."""
+    todo = Todo(title="  Test task  ")
+    assert todo.title == "Test task"
+
+
+def test_title_required():
+    """Test that title is required."""
+    with pytest.raises(ValueError):
+        Todo(title=None)
